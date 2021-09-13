@@ -1,0 +1,131 @@
+---
+title: "Project_s12470732"
+author: "Kwok Yuk Kei (s12470732)"
+date: "2021/1/23"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#install.packages("Hmisc")
+library(Hmisc)
+
+```
+
+
+```{r}
+library(readr)
+PRSA_Data_Aotizhongxin_20130301_20170228 <- data.frame(read_csv("/Users/yukkeikwok/Downloads/PRSA_Data_20130301-20170228/PRSA_Data_Aotizhongxin_20130301-20170228.csv"))
+PRSA_Data <- PRSA_Data_Aotizhongxin_20130301_20170228[,c(2:15,17)]
+year=(PRSA_Data$year>2016)
+PRSA_Data=PRSA_Data[year,c(5:15)]
+summary(PRSA_Data)
+sum(is.na(PRSA_Data))
+```
+
+```{r}
+newPRSA <- PRSA_Data
+newPRSA$PM2.5<-impute(newPRSA$PM2.5,median)
+newPRSA$PM10 <-impute(newPRSA$PM10,median)
+newPRSA$SO2 <-impute(newPRSA$SO2,median)
+newPRSA$NO2 <-impute(newPRSA$NO2,median)
+newPRSA$CO <-impute(newPRSA$CO,median)
+newPRSA$O3 <-impute(newPRSA$O3,median)
+newPRSA$TEMP <-impute(newPRSA$TEMP,median)
+newPRSA$PRES <-impute(newPRSA$PRES,median)
+newPRSA$DEWP <-impute(newPRSA$DEWP,median)
+newPRSA$RAIN <-impute(newPRSA$RAIN,median)
+newPRSA$WSPM <-impute(newPRSA$WSPM,median)
+
+summary(newPRSA)
+sum(is.na(newPRSA))
+```
+
+```{r}
+par(mfrow=c(1,2))
+boxplot(PRSA_Data$PM2.5, main="Boxplot of PM2.5")
+hist(PRSA_Data$PM2.5)
+
+par(mfrow=c(2,3))
+hist(PRSA_Data$PM10)
+
+hist(PRSA_Data$SO2)
+
+hist(PRSA_Data$NO2)
+
+hist(PRSA_Data$CO)
+
+hist(PRSA_Data$O3)
+
+par(mfrow=c(2,3))
+
+hist(PRSA_Data$TEMP)
+
+hist(PRSA_Data$PRES)
+
+hist(PRSA_Data$DEWP)
+
+hist(PRSA_Data$RAIN)
+
+hist(PRSA_Data$WSPM)
+```
+
+```{r}
+library(PerformanceAnalytics) #best pearson
+corrr=chart.Correlation(newPRSA, histogram=TRUE,pch=19)
+corr=cor(newPRSA)
+```
+
+```{r}
+x=model.matrix(PM2.5~.,newPRSA)[,-1]
+y=newPRSA$PM2.5
+
+# Ridge Regression
+
+library(glmnet)
+
+grid=10^seq(10,-2,length=100)
+grid[1]
+grid[100]
+set.seed(1)
+train=sample(1:nrow(x), nrow(x)/2)
+test=(-train)
+y.test=y[test]
+
+ridge.mod=glmnet(x[train,],y[train],alpha=0,lambda=grid, thresh=1e-12)
+plot(ridge.mod)
+
+set.seed(1)#**use cross-validation to choose the tuning parameter lamda
+cv.ridge=cv.glmnet(x[train,],y[train],alpha=0)
+plot(cv.ridge)
+bestlam=cv.ridge$lambda.min
+bestlam
+ridge.pred=predict(ridge.mod,s=bestlam,newx=x[test,])
+mean((ridge.pred-y.test)^2)# Calculate test MSE
+ridge.out=glmnet(x,y,alpha=0)
+predict(ridge.out,type="coefficients",s=bestlam)
+
+# The Lasso
+
+lasso.mod=glmnet(x[train,],y[train],alpha=1,lambda=grid)
+plot(lasso.mod)
+set.seed(1)
+cv.out=cv.glmnet(x[train,],y[train],alpha=1)
+#par(mfrow=c(2,1))
+#plot(cv.ridge,main="Ridge regression")
+plot(cv.out,main="The Lasso")
+bestlam=cv.out$lambda.min
+bestlam
+lasso.pred=predict(lasso.mod,s=bestlam,newx=x[test,])
+mean((lasso.pred-y.test)^2)# Calculate test MSE
+out=glmnet(x,y,alpha=1,lambda=grid)
+lasso.coef=predict(out,type="coefficients",s=bestlam,)
+lasso.coef
+lasso.coef[lasso.coef!=0]
+
+```
